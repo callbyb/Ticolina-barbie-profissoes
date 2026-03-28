@@ -8,19 +8,33 @@ import os
 
 st.set_page_config(layout="wide", page_title="Escala Hospitalar Profissional")
 
-# --- SISTEMA DE ARQUIVOS (SALVAMENTO PERMANENTE) ---
 FILE_CONFIG = "config_escala.json"
 
 def carregar_config():
-    if os.path.exists(FILE_CONFIG):
-        with open(FILE_CONFIG, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {
+    padrao = {
         "tecnicos": "Andrea Rosalem, Angela Alberto dos Santos, Anivalda Caetano Gama, Bianca de Paula Rosa, Carla Maria Beck da Silva, Edicleide de Lima Silva, Fabiana de Alcantara Fernandes, Maria Ronilda Pereira Paz, Marinês Guimarães dos Santos Xavier, Marlúcia Gil de Sousa Louzada, Renata Aparecida Ribeiro, Marizete Cerqueira M. Santos, Pablo Henrique Ferreira da Silva, Rosimeire Alves Andrade Borges, Vanessa Pires de Souza, Vanuza Gonçalves Pereira",
         "enfermeiros": "Graciele Katia da Silva Camargo, Heloisa Gonçalves Silva, Kelly Priscila Azevedo Rodrigues, Larissa Aguiar de Sousa, Jessica Cristina Moraes De Souza, Raquel Rodrigues de Souza, Natalia Caitano de Lima Costa, Thaís Rodrigues Alves, Debora Maria Alves Gregorio, Veronica Martz Venancio da Silva",
         "incompativeis_tec": "Andrea-Bianca",
-        "incompativeis_enf": ""
+        "incompativeis_enf": "",
+        "mes": 4,
+        "ano": 2026,
+        "tipo_dias": "Todos",
+        "folgas_tec": {},
+        "rest_tec": {},
+        "folgas_enf": {},
+        "rest_enf": {}
     }
+    if os.path.exists(FILE_CONFIG):
+        with open(FILE_CONFIG, "r", encoding="utf-8") as f:
+            try:
+                dados = json.load(f)
+                for k, v in padrao.items():
+                    if k not in dados:
+                        dados[k] = v
+                return dados
+            except:
+                return padrao
+    return padrao
 
 def salvar_config(dados):
     with open(FILE_CONFIG, "w", encoding="utf-8") as f:
@@ -30,38 +44,46 @@ config = carregar_config()
 
 st.title("Gestão de Escala Hospitalar")
 
-# --- DATA E TIPO DE PLANTÃO ---
 col_cfg1, col_cfg2 = st.columns(2)
 with col_cfg1:
-    mes = st.number_input("Mês", min_value=1, max_value=12, value=4)
-    ano = st.number_input("Ano", min_value=2024, max_value=2030, value=2026)
+    mes = st.number_input("Mês", min_value=1, max_value=12, value=config["mes"])
+    ano = st.number_input("Ano", min_value=2024, max_value=2030, value=config["ano"])
 with col_cfg2:
-    tipo_dias = st.radio("Dias do Plantão", ["Pares", "Ímpares", "Todos"], horizontal=True)
+    idx_tipo = ["Pares", "Ímpares", "Todos"].index(config["tipo_dias"]) if config["tipo_dias"] in ["Pares", "Ímpares", "Todos"] else 2
+    tipo_dias = st.radio("Dias do Plantão", ["Pares", "Ímpares", "Todos"], index=idx_tipo, horizontal=True)
 
 _, num_dias = calendar.monthrange(ano, mes)
 dias_mes = list(range(1, num_dias + 1))
 dias_plantao = [d for d in dias_mes if (tipo_dias == "Pares" and d % 2 == 0) or (tipo_dias == "Ímpares" and d % 2 != 0) or (tipo_dias == "Todos")]
 
-# --- ABAS ---
 tab_escala, tab_folgas, tab_config = st.tabs(["📅 Gerar Escala", "🏥 Folgas e Proibições", "⚙️ Configurações Mestres"])
 
 with tab_config:
-    st.subheader("Configurações Permanentes")
+    st.subheader("Configurações Permanentes da Equipe")
     col_c1, col_c2 = st.columns(2)
-    new_tec = col_c1.text_area("Nomes (Técnicos):", value=config["tecnicos"], height=150)
-    new_inc_tec = col_c1.text_area("Incompatíveis (Técnicos):", value=config.get("incompativeis_tec", ""), height=100)
-    new_enf = col_c2.text_area("Nomes (Enfermeiros):", value=config["enfermeiros"], height=150)
-    new_inc_enf = col_c2.text_area("Incompatíveis (Enfermeiros):", value=config.get("incompativeis_enf", ""), height=100)
-    if st.button("💾 Salvar Alterações"):
-        salvar_config({"tecnicos": new_tec, "enfermeiros": new_enf, "incompativeis_tec": new_inc_tec, "incompativeis_enf": new_inc_enf})
+    with col_c1:
+        st.markdown("### 🩺 Técnicos")
+        new_tec = st.text_area("Nomes (Técnicos):", value=config["tecnicos"], height=150)
+        new_inc_tec = st.text_area("Pares Incompatíveis (Técnicos):", value=config["incompativeis_tec"], height=100)
+    with col_c2:
+        st.markdown("### 👩‍⚕️ Enfermeiros")
+        new_enf = st.text_area("Nomes (Enfermeiros):", value=config["enfermeiros"], height=150)
+        new_inc_enf = st.text_area("Pares Incompatíveis (Enfermeiros):", value=config["incompativeis_enf"], height=100)
+
+    if st.button("💾 Salvar Nomes e Incompatibilidades"):
+        config["tecnicos"] = new_tec
+        config["enfermeiros"] = new_enf
+        config["incompativeis_tec"] = new_inc_tec
+        config["incompativeis_enf"] = new_inc_enf
+        salvar_config(config)
         st.rerun()
 
-tecnicos_nomes = [n.strip() for n in new_tec.split(",") if n.strip()]
-enfermeiros_nomes = [n.strip() for n in new_enf.split(",") if n.strip()]
+tecnicos_nomes = [n.strip() for n in config["tecnicos"].split(",") if n.strip()]
+enfermeiros_nomes = [n.strip() for n in config["enfermeiros"].split(",") if n.strip()]
 def processar_pares(t): return [tuple(p.split("-")) for p in [i.strip() for i in t.split(",") if i.strip()] if "-" in p]
-inc_tec = processar_pares(new_inc_tec); inc_enf = processar_pares(new_inc_enf)
+inc_tec = processar_pares(config["incompativeis_tec"])
+inc_enf = processar_pares(config["incompativeis_enf"])
 
-# --- SETORES ---
 setores_tec = {
     "Puerpério": {"vagas": 2, "sigla": "P", "max": 2, "co": True},
     "Recém-nascido": {"vagas": 1, "sigla": "RN", "max": 2, "co": True},
@@ -82,22 +104,38 @@ setores_enf = {
     "Recém-nascido": {"vagas": 1, "sigla": "RN", "max": 2, "co": True}
 }
 
-# --- FOLGAS ---
 folgas_tec = {}; rest_tec = {}; folgas_enf = {}; rest_enf = {}
+valid_setores_tec = list(setores_tec.keys()) + ["Apoio"]
+valid_setores_enf = list(setores_enf.keys()) + ["Apoio"]
+
 with tab_folgas:
     sub_t, sub_e = st.tabs(["🩺 Técnicos", "👩‍⚕️ Enfermeiros"])
     with sub_t:
         for f in tecnicos_nomes:
             c1, c2 = st.columns(2)
-            folgas_tec[f] = c1.multiselect(f"Folgas {f}", dias_plantao, key=f"f_t_{f}")
-            rest_tec[f] = c2.multiselect(f"Proibidos {f}", list(setores_tec.keys()) + ["Apoio"], key=f"r_t_{f}")
+            def_f_tec = [d for d in config["folgas_tec"].get(f, []) if d in dias_plantao]
+            def_r_tec = [s for s in config["rest_tec"].get(f, []) if s in valid_setores_tec]
+            folgas_tec[f] = c1.multiselect(f"Folgas {f}", dias_plantao, default=def_f_tec, key=f"f_t_{f}")
+            rest_tec[f] = c2.multiselect(f"Proibidos {f}", valid_setores_tec, default=def_r_tec, key=f"r_t_{f}")
     with sub_e:
         for f in enfermeiros_nomes:
             c1, c2 = st.columns(2)
-            folgas_enf[f] = c1.multiselect(f"Folgas {f}", dias_plantao, key=f"f_e_{f}")
-            rest_enf[f] = c2.multiselect(f"Proibidos {f}", list(setores_enf.keys()) + ["Apoio"], key=f"r_e_{f}")
+            def_f_enf = [d for d in config["folgas_enf"].get(f, []) if d in dias_plantao]
+            def_r_enf = [s for s in config["rest_enf"].get(f, []) if s in valid_setores_enf]
+            folgas_enf[f] = c1.multiselect(f"Folgas {f}", dias_plantao, default=def_f_enf, key=f"f_e_{f}")
+            rest_enf[f] = c2.multiselect(f"Proibidos {f}", valid_setores_enf, default=def_r_enf, key=f"r_e_{f}")
+    
+    if st.button("💾 Salvar Estado Atual (Data, Folgas e Proibições)"):
+        config["mes"] = mes
+        config["ano"] = ano
+        config["tipo_dias"] = tipo_dias
+        config["folgas_tec"] = folgas_tec
+        config["rest_tec"] = rest_tec
+        config["folgas_enf"] = folgas_enf
+        config["rest_enf"] = rest_enf
+        salvar_config(config)
+        st.success("Configurações do mês salvas! Ao recarregar a página, as opções selecionadas serão mantidas.")
 
-# --- DIAGNÓSTICO PRÉ-CÁLCULO ---
 def verificar_viabilidade(nomes, dias, folgas, setores_dict, label):
     vagas_por_dia = sum(s["vagas"] for s in setores_dict.values())
     for d in dias:
@@ -107,7 +145,6 @@ def verificar_viabilidade(nomes, dias, folgas, setores_dict, label):
             return False
     return True
 
-# --- MOTOR DE CÁLCULO FLEXÍVEL ---
 def resolver_escala(nomes, setores_dict, folgas_dict, rest_dict, incompativeis, is_enf=False):
     if not nomes: return None, None
     prob = pulp.LpProblem("Escala", pulp.LpMinimize)
@@ -115,29 +152,24 @@ def resolver_escala(nomes, setores_dict, folgas_dict, rest_dict, incompativeis, 
     
     x = pulp.LpVariable.dicts("x", [(f, d, s) for f in nomes for d in dias_plantao for s in setores_list], cat='Binary')
     
-    # Variáveis de Penalidade (Tornam a escala flexível sem travar)
     passou = pulp.LpVariable.dicts("passou", [(f, s) for f in nomes for s in setores_list], cat='Binary')
     excedeu = pulp.LpVariable.dicts("excedeu", [(f, s) for f in nomes for s in setores_list], lowBound=0, cat='Integer')
     quebra_janela = pulp.LpVariable.dicts("quebra_janela", [(f, d, s) for f in nomes for d in dias_plantao for s in setores_list], lowBound=0, cat='Integer')
     rep_seg = pulp.LpVariable.dicts("rep_seg", [(f, d, s) for f in nomes for d in dias_plantao for s in setores_list], lowBound=0, cat='Integer')
     excesso_co = pulp.LpVariable.dicts("excesso_co", [(f, d) for f in nomes for d in dias_plantao], lowBound=0, cat='Integer')
 
-    # RN para enfermeiros NÃO entra na premiação de rotatividade
     setores_rotacao = [s for s in setores_list if not (is_enf and s == "Recém-nascido")]
 
-    # O sistema tenta evitar as penalidades, mas se for a unica opção (ex: Veronica), ele aceita e gera a escala.
     prob += -pulp.lpSum([passou[(f, s)] * 1000 for f in nomes for s in setores_rotacao]) + \
             pulp.lpSum([excedeu[(f, s)] * 500 for f in nomes for s in setores_list]) + \
             pulp.lpSum([quebra_janela[(f, d, s)] * 1000 for f in nomes for d in dias_plantao for s in setores_list]) + \
             pulp.lpSum([rep_seg[(f, d, s)] * 3000 for f in nomes for d in dias_plantao for s in setores_list]) + \
             pulp.lpSum([excesso_co[(f, d)] * 3000 for f in nomes for d in dias_plantao])
 
-    # Regra Dura: As vagas precisam ser preenchidas
     for d in dias_plantao:
         for s in setores_list:
             prob += pulp.lpSum([x[(f, d, s)] for f in nomes]) == setores_dict[s]["vagas"]
 
-    # Atribuição de Proibições e Folgas
     for f in nomes:
         for s in setores_list:
             prob += passou[(f, s)] <= pulp.lpSum([x[(f, d, s)] for d in dias_plantao])
@@ -159,7 +191,6 @@ def resolver_escala(nomes, setores_dict, folgas_dict, rest_dict, incompativeis, 
             for d in dias_plantao:
                 for s in setores_list: prob += x[(f1, d, s)] + x[(f2, d, s)] <= 1
 
-    # Regras Flexíveis (Permitem repetição se for estritamente necessário)
     setores_co = [s for s in setores_list if setores_dict[s]["co"]]
     for f in nomes:
         for s in setores_list:
@@ -175,7 +206,15 @@ def resolver_escala(nomes, setores_dict, folgas_dict, rest_dict, incompativeis, 
 
 with tab_escala:
     if st.button("🚀 Gerar Escalas", type="primary"):
-        # Verificando se há gente suficiente antes de tentar calcular
+        config["mes"] = mes
+        config["ano"] = ano
+        config["tipo_dias"] = tipo_dias
+        config["folgas_tec"] = folgas_tec
+        config["rest_tec"] = rest_tec
+        config["folgas_enf"] = folgas_enf
+        config["rest_enf"] = rest_enf
+        salvar_config(config)
+        
         v_t = verificar_viabilidade(tecnicos_nomes, dias_plantao, folgas_tec, setores_tec, "Técnicos")
         v_e = verificar_viabilidade(enfermeiros_nomes, dias_plantao, folgas_enf, setores_enf, "Enfermeiros")
         
